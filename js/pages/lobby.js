@@ -101,7 +101,7 @@ boot({
     } catch (e) { $('#inv').innerHTML = ''; }
 
     const leaveBtn = document.createElement('button'); leaveBtn.className = 'btn sm danger'; leaveBtn.type = 'button'; leaveBtn.innerHTML = `${icon('door')}Leave`;
-    $('.top-title').after(leaveBtn);
+    $('.bar-right').prepend(leaveBtn);
     leaveBtn.addEventListener('click', async () => { leaving = true; try { await api.lobbyLeave(id); ch.send('refresh', {}); } catch (e) { /* closing anyway */ } ch.leave(); location.href = 'lobbies.html'; });
     const poll = setInterval(() => { if (!document.hidden) reload(); }, 8000);
     addEventListener('pagehide', () => { clearInterval(poll); ch.leave(); });

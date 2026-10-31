@@ -205,7 +205,7 @@ create or replace function public.o_card(p_user uuid) returns jsonb
 language sql stable security definer set search_path = '' as $$
   select jsonb_build_object('user_id', o.user_id, 'username', o.username, 'display_name', o.display_name, 'avatar_url', o.avatar_url,
     'border', o.border, 'level', public.o_level(o.xp), 'turbo', public.o_turbo(o.user_id),
-    'name_grad', case when public.o_turbo(o.user_id) then o.name_grad end, 'plan', p.plan, 'last_seen', o.last_seen)
+    'name_grad', case when public.o_turbo(o.user_id) then o.name_grad end, 'plan', p.plan, 'last_seen', o.last_seen, 'showcase', o.showcase)
   from public.online_profiles o join public.profiles p on p.id = o.user_id where o.user_id = p_user $$;
 
 create or replace function public.o_friend_status(p_me uuid, p_other uuid) returns text

@@ -1,7 +1,8 @@
 /* =====================================================================
-   ProMouser Online: shared 3D FPS engine (Neon Arena, Shooting Gallery)
+   ProMouser Online: shared 3D FPS engine (Arena, Shooting Gallery)
    Renderer + bloom, mouse-look, a procedural gun with recoil and muzzle
-   flash, tracers, sparks, crosshair/hitmarkers and synthesized sound.
+   flash, tracers, sparks, crosshair/hitmarkers, synthesized sound and a
+   daylight world kit (sky, sun, concrete, AO blocks, wall lettering).
    ===================================================================== */
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
@@ -9,6 +10,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 export { THREE };
 
 const HQ = new URLSearchParams(location.search).has('hq');   // ?hq keeps full quality (screenshots)
@@ -60,34 +62,93 @@ export function look(canvas, cam, { sens = .0022 } = {}) {
   return st;
 }
 
-/* a procedural rifle / pistol held by the camera */
-export function gun(cam, { color = '#22d3ee', kind = 'rifle' } = {}) {
-  const g = new THREE.Group(), dark = new THREE.MeshStandardMaterial({ color: '#1a1b22', roughness: .45, metalness: .7 }), mid = new THREE.MeshStandardMaterial({ color: '#2c2f3a', roughness: .35, metalness: .8 });
-  const glow = new THREE.MeshBasicMaterial({ color: new THREE.Color(color).multiplyScalar(2.4), toneMapped: false });
-  const box = (w, h, d, m, x, y, z) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); b.position.set(x, y, z); g.add(b); return b; };
+/* a procedural rifle / pistol held by the camera: matte polymer, machined metal, one lime accent */
+export function gun(cam, { color = '#d7ff3c', kind = 'rifle' } = {}) {
+  const g = new THREE.Group();
+  const poly = new THREE.MeshStandardMaterial({ color: '#25282e', roughness: .78, metalness: .05 });
+  const metal = new THREE.MeshStandardMaterial({ color: '#3b3f47', roughness: .32, metalness: .9 });
+  const dark = new THREE.MeshStandardMaterial({ color: '#141518', roughness: .5, metalness: .6 });
+  const paint = new THREE.MeshStandardMaterial({ color, roughness: .45, metalness: .1, emissive: color, emissiveIntensity: .08 });
+  const box = (w, h, d, m, x, y, z, rx = 0) => { const b = new THREE.Mesh(Math.min(w, h, d) > .03 ? new RoundedBoxGeometry(w, h, d, 2, Math.min(w, h, d) * .22) : new THREE.BoxGeometry(w, h, d), m); b.position.set(x, y, z); b.rotation.x = rx; b.castShadow = false; g.add(b); return b; };
+  const cyl = (r, l, m, x, y, z, seg = 16) => { const c = new THREE.Mesh(new THREE.CylinderGeometry(r, r, l, seg), m); c.rotation.x = Math.PI / 2; c.position.set(x, y, z); g.add(c); return c; };
   if (kind === 'rifle') {
-    box(.07, .09, .5, dark, 0, 0, -.25); box(.06, .06, .32, mid, 0, .07, -.2); box(.045, .14, .07, dark, 0, -.1, -.08); box(.05, .12, .09, mid, 0, -.09, -.3);
-    box(.075, .02, .44, glow, 0, .046, -.25); box(.012, .012, .3, glow, .037, 0, -.28);
-    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(.018, .018, .28, 12), mid); barrel.rotation.x = Math.PI / 2; barrel.position.set(0, .01, -.62); g.add(barrel);
-    box(.03, .035, .05, glow, 0, .11, -.12);
+    box(.072, .085, .34, metal, 0, 0, -.2);                 // upper receiver
+    box(.066, .06, .3, poly, 0, -.055, -.2);                // lower receiver
+    box(.078, .078, .36, poly, 0, .002, -.53);              // handguard
+    for (let i = 0; i < 7; i++) box(.082, .012, .022, dark, 0, .046, -.39 - i * .045);   // top rail teeth
+    box(.02, .03, .3, dark, .042, 0, -.53); box(.02, .03, .3, dark, -.042, 0, -.53);    // side rails
+    cyl(.016, .26, metal, 0, .006, -.83); cyl(.024, .06, dark, 0, .006, -.95);          // barrel + muzzle brake
+    box(.052, .15, .07, poly, 0, -.15, -.24, .28);          // magazine
+    box(.05, .13, .06, poly, 0, -.13, -.07, -.32);          // grip
+    box(.06, .07, .2, poly, 0, -.02, .04);                  // stock
+    box(.074, .008, .06, paint, 0, .047, -.1);              // lime accent
+    box(.05, .05, .1, dark, 0, .09, -.22);                  // optic body
+    const lens = new THREE.Mesh(new THREE.CircleGeometry(.019, 20), new THREE.MeshBasicMaterial({ color: '#ff5b2e', toneMapped: false })); lens.position.set(0, .095, -.271); lens.rotation.y = Math.PI; g.add(lens);
   } else {
-    box(.06, .08, .26, dark, 0, 0, -.14); box(.05, .14, .07, mid, 0, -.1, -.05); box(.062, .015, .24, glow, 0, .045, -.14);
+    box(.058, .07, .24, metal, 0, .01, -.13); box(.054, .05, .22, poly, 0, -.04, -.12); box(.05, .13, .065, poly, 0, -.11, -.03, -.22);
+    box(.06, .012, .08, paint, 0, .05, -.06); cyl(.013, .04, dark, 0, .01, -.265);
   }
-  g.scale.setScalar(.85); g.position.set(.24, -.23, -.4); cam.add(g);
-  const flash = new THREE.Mesh(new THREE.SphereGeometry(.05, 8, 8), new THREE.MeshBasicMaterial({ color: '#fff3c4', toneMapped: false }));
-  flash.position.set(0, .01, kind === 'rifle' ? -.78 : -.3); flash.visible = false; g.add(flash);
-  const light = new THREE.PointLight(color, 0, 6); light.position.copy(flash.position); g.add(light);
+  g.scale.setScalar(.56); cam.add(g);
+  const flash = new THREE.Mesh(new THREE.PlaneGeometry(.18, .18), new THREE.MeshBasicMaterial({ map: flashTex(), color: '#ffd9a0', transparent: true, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending }));
+  flash.position.set(0, .006, kind === 'rifle' ? -1.0 : -.3); flash.visible = false; g.add(flash);
+  const light = new THREE.PointLight('#ffc77a', 0, 7); light.position.copy(flash.position); g.add(light);
   const muzzle = new THREE.Object3D(); muzzle.position.copy(flash.position); g.add(muzzle);
   let kick = 0, bob = 0;
   return {
     group: g, muzzle,
-    fire() { kick = 1; flash.visible = true; flash.scale.setScalar(.8 + Math.random() * .7); light.intensity = 9; setTimeout(() => { flash.visible = false; light.intensity = 0; }, 45); },
+    fire() { kick = 1; flash.visible = true; flash.rotation.z = Math.random() * 6; flash.scale.setScalar(.8 + Math.random() * .6); light.intensity = 6; setTimeout(() => { flash.visible = false; light.intensity = 0; }, 40); },
     update(dt, moving, reloading) {
       kick = Math.max(0, kick - dt * 9); bob += dt * (moving ? 9 : 2);
-      g.position.set(.24 + Math.sin(bob) * (moving ? .012 : .003), -.23 + Math.abs(Math.cos(bob)) * (moving ? .014 : .003) - (reloading ? .12 : 0), -.4 + kick * .06);
-      g.rotation.x = kick * .12 + (reloading ? -.5 : 0); g.rotation.z = reloading ? .4 : 0;
+      g.position.set(.2 + Math.sin(bob) * (moving ? .01 : .003), -.2 + Math.abs(Math.cos(bob)) * (moving ? .012 : .003) - (reloading ? .1 : 0), -.34 + kick * .04);
+      g.rotation.x = kick * .08 + (reloading ? -.5 : 0); g.rotation.z = reloading ? .4 : 0;
     }
   };
+}
+function flashTex() {
+  const c = document.createElement('canvas'); c.width = c.height = 128; const x = c.getContext('2d'), gr = x.createRadialGradient(64, 64, 0, 64, 64, 64);
+  gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(.25, 'rgba(255,220,150,.9)'); gr.addColorStop(1, 'rgba(255,140,40,0)'); x.fillStyle = gr;
+  x.beginPath(); for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2, r = i % 2 ? 22 : 64; x.lineTo(64 + Math.cos(a) * r, 64 + Math.sin(a) * r); } x.fill();
+  return new THREE.CanvasTexture(c);
+}
+
+/* ---------- daylight world kit: clean, readable, competitive ---------- */
+export function daySky(scene, { top = '#5d86b0', horizon = '#d9d6cd', ground = '#a9a296', fog = [40, 140] } = {}) {
+  const c = document.createElement('canvas'); c.width = 4; c.height = 256; const x = c.getContext('2d'), gr = x.createLinearGradient(0, 0, 0, 256);
+  gr.addColorStop(0, top); gr.addColorStop(.46, horizon); gr.addColorStop(.5, horizon); gr.addColorStop(1, ground); x.fillStyle = gr; x.fillRect(0, 0, 4, 256);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  scene.add(new THREE.Mesh(new THREE.SphereGeometry(300, 32, 16), new THREE.MeshBasicMaterial({ map: t, side: THREE.BackSide, fog: false, depthWrite: false })));
+  scene.background = new THREE.Color(horizon); scene.fog = new THREE.Fog(horizon, fog[0], fog[1]);
+}
+export function daylight(scene, { extent = 36, at = [24, 40, 14] } = {}) {
+  scene.add(new THREE.HemisphereLight('#dfe8f4', '#7d7466', .95));
+  const sun = new THREE.DirectionalLight('#ffeacc', 2.4); sun.position.set(...at); sun.castShadow = true;
+  Object.assign(sun.shadow.camera, { left: -extent, right: extent, top: extent, bottom: -extent, near: 1, far: 120 }); sun.shadow.mapSize.set(2048, 2048); sun.shadow.bias = -.0004; sun.shadow.normalBias = .02;
+  scene.add(sun); scene.environmentIntensity = .45; return sun;
+}
+/* poured-concrete floor: speckle, soft stains and saw-cut joints */
+export function concreteTex(repeat = 8, { base = '#a39e94', joint = 'rgba(70,64,56,.35)' } = {}) {
+  const c = document.createElement('canvas'); c.width = c.height = 512; const x = c.getContext('2d');
+  x.fillStyle = base; x.fillRect(0, 0, 512, 512);
+  for (let i = 0; i < 26; i++) { const gx = Math.random() * 512, gy = Math.random() * 512, r = 40 + Math.random() * 120, g = x.createRadialGradient(gx, gy, 0, gx, gy, r); g.addColorStop(0, `rgba(${Math.random() < .5 ? '90,84,76' : '235,231,222'},.12)`); g.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = g; x.fillRect(0, 0, 512, 512); }
+  for (let i = 0; i < 9000; i++) { const v = Math.random() < .5 ? 0 : 255; x.fillStyle = `rgba(${v},${v},${v},${Math.random() * .07})`; x.fillRect(Math.random() * 512, Math.random() * 512, 1.5, 1.5); }
+  x.strokeStyle = joint; x.lineWidth = 2; x.strokeRect(1, 1, 510, 510); x.beginPath(); x.moveTo(256, 0); x.lineTo(256, 512); x.moveTo(0, 256); x.lineTo(512, 256); x.lineWidth = 1; x.stroke();
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(repeat, repeat); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t;
+}
+/* a box with baked ambient occlusion (darker toward the ground) and a crisp dark cap line */
+export function block(w, h, d, color, { rough = .85, metal = 0, cap = true } = {}) {
+  const geo = new THREE.BoxGeometry(w, h, d, 1, Math.max(1, Math.round(h * 2)), 1), pos = geo.attributes.position, col = new Float32Array(pos.count * 3), c = new THREE.Color(color);
+  for (let i = 0; i < pos.count; i++) { const k = .62 + .38 * Math.min(1, (pos.getY(i) + h / 2) / Math.min(h, 2.2)); col.set([c.r * k, c.g * k, c.b * k], i * 3); }
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: rough, metalness: metal })); m.castShadow = m.receiveShadow = true;
+  if (cap) { const k = new THREE.Mesh(new THREE.BoxGeometry(w + .04, .06, d + .04), new THREE.MeshStandardMaterial({ color: c.clone().multiplyScalar(.8), roughness: .7, metalness: metal })); k.position.y = h / 2; k.castShadow = true; m.add(k); }
+  return m;
+}
+/* painted lettering on a wall (a flat plane, not a billboard) */
+export function wallText(text, { color = '#1d1f23', w = 1024, h = 160, size = 92, width = 12 } = {}) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d');
+  x.font = `700 ${size}px "Chakra Petch", system-ui, sans-serif`; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillStyle = color; x.fillText(text, w / 2, h / 2 + 4);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+  return new THREE.Mesh(new THREE.PlaneGeometry(width, width * h / w), new THREE.MeshStandardMaterial({ map: t, transparent: true, roughness: .9 }));
 }
 
 /* tracers and sparks */
@@ -95,7 +156,7 @@ export function fx(scene) {
   const items = [];
   const tracerMat = c => new THREE.LineBasicMaterial({ color: new THREE.Color(c).multiplyScalar(3), transparent: true, opacity: 1, toneMapped: false });
   return {
-    tracer(a, b, color = '#ffe08a') { const geo = new THREE.BufferGeometry().setFromPoints([a, b]), l = new THREE.Line(geo, tracerMat(color)); scene.add(l); items.push({ o: l, life: .07, max: .07 }); },
+    tracer(a, b, color = '#ffe2a8') { const geo = new THREE.BufferGeometry().setFromPoints([a, b]), l = new THREE.Line(geo, tracerMat(color)); scene.add(l); items.push({ o: l, life: .07, max: .07 }); },
     sparks(at, color = '#ffd27a', n = 10) {
       const pos = new Float32Array(n * 3), vel = []; for (let i = 0; i < n; i++) { pos.set([at.x, at.y, at.z], i * 3); vel.push(new THREE.Vector3((Math.random() - .5) * 4, Math.random() * 3, (Math.random() - .5) * 4)); }
       const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
@@ -113,7 +174,7 @@ export function fx(scene) {
 
 /* DOM overlay: crosshair + hitmarker */
 export function crosshair(stage) {
-  const c = document.createElement('div');
+  const c = document.createElement('div'); c.className = 'xhair';
   c.innerHTML = `<div style="position:absolute;left:50%;top:50%;width:22px;height:22px;margin:-11px 0 0 -11px;pointer-events:none;z-index:4">
     <i style="position:absolute;left:10px;top:0;width:2px;height:7px;background:#fff;box-shadow:0 0 4px #000"></i><i style="position:absolute;left:10px;bottom:0;width:2px;height:7px;background:#fff;box-shadow:0 0 4px #000"></i>
     <i style="position:absolute;top:10px;left:0;height:2px;width:7px;background:#fff;box-shadow:0 0 4px #000"></i><i style="position:absolute;top:10px;right:0;height:2px;width:7px;background:#fff;box-shadow:0 0 4px #000"></i></div>
@@ -143,9 +204,9 @@ export function sfx(kind) {
 }
 
 /* neon text on a canvas texture (signs, name tags) */
-export function textSprite(text, { color = '#ffffff', size = 64, glow = '#a855f7', w = 512, h = 128 } = {}) {
+export function textSprite(text, { color = '#ffffff', size = 64, glow = 'rgba(0,0,0,.85)', w = 512, h = 128, blur = 10 } = {}) {
   const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d');
-  x.font = `800 ${size}px "DM Sans", system-ui, sans-serif`; x.textAlign = 'center'; x.textBaseline = 'middle'; x.shadowColor = glow; x.shadowBlur = 18; x.fillStyle = color; x.fillText(text, w / 2, h / 2);
+  x.font = `700 ${size}px "Chakra Petch", system-ui, sans-serif`; x.textAlign = 'center'; x.textBaseline = 'middle'; x.shadowColor = glow; x.shadowBlur = blur; x.fillStyle = color; x.fillText(text, w / 2, h / 2);
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
   const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, transparent: true, depthWrite: false, toneMapped: false })); s.scale.set(w / h * .5, .5, 1);
   return s;

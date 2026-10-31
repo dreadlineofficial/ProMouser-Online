@@ -20,7 +20,7 @@ export function onPress(el, fn) {
 }
 
 export async function countdown(stage, n = 3) {
-  const o = document.createElement('div'); o.className = 'gover'; stage.appendChild(o);
+  const o = document.createElement('div'); o.className = 'gover clear'; stage.appendChild(o);   // see-through: the 3D scene stays visible
   for (let i = n; i > 0; i--) { o.innerHTML = `<div class="count">${i}</div>`; await sleep(800); }
   o.innerHTML = '<div class="count">GO!</div>'; await sleep(350); o.remove();
 }
@@ -37,7 +37,7 @@ export function makeBots(n, difficulty = 'normal', r = Math.random) {
 /* ---------- match context: solo, vs bots, or a lobby round ---------- */
 export async function match({ game, mode, lobbyId, round, seed }) {
   const me = state.me, g = gameById[game];
-  const card = { user_id: me.user_id, display_name: me.display_name, username: me.username, avatar_url: me.avatar_url, border: me.border, turbo: me.turbo, name_grad: me.name_grad, level: me.level };
+  const card = { user_id: me.user_id, display_name: me.display_name, username: me.username, avatar_url: me.avatar_url, border: me.border, turbo: me.turbo, name_grad: me.name_grad, level: me.level, showcase: me.showcase };
   const ctx = { game, g, me, card, mode, seed: seed || Math.floor(Math.random() * 1e9), lobbyId: lobbyId || null, players: [card], bots: [], isHost: true, net: null, lobby: null };
   ctx.rand = rng(ctx.seed);
   if (mode === 'bots') ctx.bots = makeBots(game === 'arena' ? 3 : game === 'royale' ? 5 : 1, 'normal', ctx.rand);
@@ -101,5 +101,5 @@ export async function results(stage, ctx, { score, won, title, sub, standings, u
 }
 
 export function hud(stage, html) { let h = stage.querySelector('.ghud'); if (!h) { h = document.createElement('div'); h.className = 'ghud'; stage.appendChild(h); } h.innerHTML = html; return h; }
-export const pill = (label, value, id) => `<span class="pill"${id ? ` id="${id}"` : ''}>${label} <b>${value}</b></span>`;
+export const pill = (label, value, id, cls = '') => `<span class="hud-box ${cls}"${id ? ` id="${id}"` : ''}><span>${label}</span><b>${value}</b></span>`;
 export { avatar, nameTag, esc, icon, num, toast };

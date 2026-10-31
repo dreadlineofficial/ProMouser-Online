@@ -57,7 +57,7 @@ function ensure(db, id) {
 }
 function card(db, id) {
   const o = db.profiles[id], u = db.users[id]; if (!o) return null; const t = turboOn(db, id);
-  return { user_id: id, username: o.username, display_name: o.display_name, avatar_url: o.avatar_url, border: o.border, level: levelOf(o.xp), turbo: t, name_grad: t ? o.name_grad : null, plan: u.plan || 'free', last_seen: new Date(o.last_seen).toISOString() };
+  return { user_id: id, username: o.username, display_name: o.display_name, avatar_url: o.avatar_url, border: o.border, level: levelOf(o.xp), turbo: t, name_grad: t ? o.name_grad : null, plan: u.plan || 'free', last_seen: new Date(o.last_seen).toISOString(), showcase: o.showcase };
 }
 function friendStatus(db, a, b) {
   const f = db.friends.find(x => (x.a === a && x.b === b) || (x.a === b && x.b === a));

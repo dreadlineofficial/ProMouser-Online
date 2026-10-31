@@ -156,7 +156,7 @@ export function authModal(mode = 'signin') {
     } catch (x) { $('.f-err', body).textContent = errText(x); btn.disabled = false; }
   });
 }
-export const logo = () => `<span class="logo"><img src="assets/logo.svg" alt="" width="30" height="30"><span>ProMouser <b>Online</b></span></span>`;
+export const logo = () => `<span class="logo"><img src="assets/logo.svg" alt="" width="32" height="32"><b>PROMOUSER</b><em>ONLINE</em></span>`;
 
 /* ---------- checkout (₹ items and Turbo) ---------- */
 export function checkout(products, onDone) {
@@ -176,19 +176,19 @@ export const buyTurbo = done => checkout([TURBO_PRODUCT], done);
 export const buyItem = (it, done) => checkout([itemProduct(it)], done);
 
 /* ---------- shell ---------- */
-const NAV = [['index.html', 'home', 'Home'], ['play.html', 'play', 'Play'], ['lobbies.html', 'lobby', 'Lobbies'], ['friends.html', 'friends', 'Friends'], ['shop.html', 'shop', 'Shop'], ['pass.html', 'pass', 'Pass']];
+const NAV = [['index.html', 'home', 'Home'], ['play.html', 'play', 'Play'], ['lobbies.html', 'lobby', 'Lobbies'], ['friends.html', 'friends', 'Social'], ['shop.html', 'shop', 'Store'], ['pass.html', 'pass', 'Pass']];
 function paintTop() {
   const me = state.me, slot = $('#topUser'); if (!slot) return;
   if (!me) { slot.innerHTML = `<button class="btn primary sm" type="button" data-auth="signin">Sign in</button>`; $$('.nav-badge').forEach(b => { b.hidden = true; }); return; }
   slot.innerHTML = `
     <a class="pill coins" href="shop.html" title="Your coins">${icon('coin')}<b id="coinCount">${num(me.coins)}</b></a>
     ${me.turbo ? `<a class="pill turbo on" href="turbo.html" title="Turbo active">${icon('turbo')}Turbo</a>` : `<a class="pill turbo" href="turbo.html">${icon('turbo')}Get Turbo</a>`}
-    <div class="me-menu"><button class="me-btn" type="button" aria-haspopup="true" aria-expanded="false" id="meBtn">${avatar(me, 34)}</button>
+    <div class="me-menu"><button class="me-btn" type="button" aria-haspopup="true" aria-expanded="false" id="meBtn">${avatar(me, 28)}${nameTag(me)}<span class="badge lvl">${me.level}</span></button>
       <div class="me-dd" id="meDd" hidden>
         <div class="me-head">${avatar(me, 44)}<div>${nameTag(me)}<small>@${esc(me.username)}</small></div></div>
         <a href="${personLink(me)}">${icon('user')}My profile</a><a href="settings.html">${icon('gear')}Settings</a><a href="${PROMOUSER_URL}account.html" target="_blank" rel="noopener">${icon('external')}ProMouser account</a>
         <button type="button" data-auth="signout">${icon('out')}Sign out</button></div></div>`;
-  const fb = $('[data-nav="friends.html"] .nav-badge'); if (fb) { const n = (me.unread || 0) + (me.requests || 0); fb.hidden = !n; fb.textContent = n > 9 ? '9+' : n; }
+  $$('[data-nav="friends.html"] .nav-badge').forEach(fb => { const n = (me.unread || 0) + (me.requests || 0); fb.hidden = !n; fb.textContent = n > 9 ? '9+' : n; });
   const btn = $('#meBtn'), dd = $('#meDd');
   btn.addEventListener('click', e => { e.stopPropagation(); dd.hidden = !dd.hidden; btn.setAttribute('aria-expanded', String(!dd.hidden)); });
 }
@@ -221,18 +221,20 @@ export async function boot({ page, title, gated = true, render, wide = false }) 
   document.body.insertAdjacentHTML('afterbegin', `
     <a class="skip" href="#view">Skip to content</a>
     <div class="app ${wide ? 'wide' : ''}">
-      <nav class="rail" aria-label="Main">
-        <a class="rail-logo" href="index.html" aria-label="ProMouser Online home"><img src="assets/logo.svg" alt="" width="36" height="36"></a>
-        ${NAV.map(([h, i, t]) => `<a class="rail-link ${page === h ? 'on' : ''}" href="${h}" data-nav="${h}" ${page === h ? 'aria-current="page"' : ''}>${icon(i)}<span>${t}</span>${h === 'friends.html' ? '<i class="nav-badge" hidden></i>' : ''}</a>`).join('')}
-        <div class="rail-foot"><a class="rail-link" href="${PROMOUSER_URL}" target="_blank" rel="noopener" title="Back to ProMouser">${icon('mouse')}<span>ProMouser</span></a></div>
-      </nav>
-      <div class="main">
-        <header class="top"><h1 class="top-title">${esc(title)}</h1>
+      <header class="bar">
+        <a class="brand" href="index.html" aria-label="ProMouser Online home"><img src="assets/logo.svg" alt="" width="30" height="30"><b>PROMOUSER</b><em>ONLINE</em></a>
+        <nav class="nav" aria-label="Main">${NAV.map(([h, , t], i) => `<a class="${page === h ? 'on' : ''}" href="${h}" data-nav="${h}" ${page === h ? 'aria-current="page"' : ''}><i>0${i + 1}</i>${t}${h === 'friends.html' ? '<i class="nav-badge" hidden></i>' : ''}</a>`).join('')}</nav>
+        <div class="bar-right">
           <form class="top-search" role="search" action="friends.html"><label class="sr" for="topQ">Find players</label>${icon('search')}<input id="topQ" name="q" placeholder="Find players" autocomplete="off" maxlength="20"></form>
-          <div class="top-user" id="topUser"></div></header>
+          <div class="top-user" id="topUser"></div></div>
+        <h1 class="top-title">${esc(title)}</h1>
+      </header>
+      <div class="shell">
         <main id="view" class="view" tabindex="-1"><div class="loading"><span class="spin"></span></div></main>
+        <aside class="side" aria-label="Friends"><h2><span>FRIENDS</span><a href="friends.html" class="idx">ALL →</a></h2><div id="sideFriends"></div>
+          <a class="side-friend" href="${PROMOUSER_URL}" target="_blank" rel="noopener" style="margin-top:18px;border-top:1px solid var(--line);padding-top:14px">${icon('mouse')}<span><b style="font-size:.86rem">Back to ProMouser</b><small>Reviews, tests and your plan</small></span></a></aside>
       </div>
-      <aside class="side" aria-label="Friends"><h2>Friends</h2><div id="sideFriends"></div></aside>
+      <nav class="mnav" aria-label="Main">${NAV.map(([h, i, t]) => `<a class="${page === h ? 'on' : ''}" href="${h}" data-nav="${h}">${icon(i)}${t}${h === 'friends.html' ? '<i class="nav-badge" hidden></i>' : ''}</a>`).join('')}</nav>
     </div>`);
   try { await api.ready; } catch (e) { $('#view').innerHTML = `<div class="empty"><h2>Can’t connect</h2><p>${esc(e.message)}</p></div>`; return; }
   await refresh();

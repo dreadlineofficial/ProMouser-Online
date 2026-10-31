@@ -13,7 +13,7 @@ boot({
         <div class="turbo-price">₹199 <small>/ month</small></div>
         ${me && me.turbo ? `<span class="badge turbo">${icon('turbo')}Active until ${new Date(me.turbo_until).toLocaleDateString('en-IN')}</span>` : ''}
         <div class="row center">${me ? `<button class="btn primary lg" type="button" id="getT">${icon('turbo')}${me.turbo ? 'Add a month' : 'Get Turbo'}</button>` : '<button class="btn primary lg" type="button" data-auth="signup">Create account to get Turbo</button>'}${me && me.turbo ? '<a class="btn ghost lg" href="settings.html#turbo">Style my profile</a>' : ''}</div>
-        <p class="small muted">Already have <a href="${PROMOUSER_URL}ultra.html" target="_blank" rel="noopener" class="grad-text"><b>ProMouser Ultra</b></a>? It includes 1 month of Turbo. Same account, nothing to link.</p></section>
+        <p class="small muted">Already have <a href="${PROMOUSER_URL}ultra.html" target="_blank" rel="noopener" class="grad-text"><b>ProMouser Ultra</b></a>? It includes a full year of Turbo. Same account, nothing to link.</p></section>
         <div class="perks">
           <div class="perk">${icon('star')}<h3>Gradient username</h3><p>Pick a preset or build your own 2–3 colour gradient. It shows in lobbies, chats, leaderboards and your profile.</p></div>
           <div class="perk">${icon('user')}<h3>Profile gradients</h3><p>Paint your profile banner with your own gradient, so your page looks nothing like anyone else’s.</p></div>

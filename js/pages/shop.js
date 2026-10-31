@@ -20,7 +20,7 @@ boot({
         ${tab === 'turbo' ? `<div class="turbo-hero"><span class="kicker">ProMouser Turbo</span><h2 class="grad-text">Stand out.</h2><p>Gradient username, custom profile gradients, the Turbo battle pass track and the exclusive Turbo Hyperdrive mouse and Aurora border.</p>
             <div class="turbo-price">₹199 <small>/ month</small></div>${me.turbo ? `<p class="badge turbo">Active until ${new Date(me.turbo_until).toLocaleDateString('en-IN')}</p>` : ''}
             <div class="row center"><button class="btn primary lg" type="button" id="getTurbo">${icon('turbo')}${me.turbo ? 'Add a month' : 'Get Turbo'}</button><a class="btn ghost lg" href="turbo.html">Everything in Turbo</a></div>
-            <p class="small muted">Got ProMouser Ultra? It includes a month of Turbo.</p></div>
+            <p class="small muted">Got ProMouser Ultra? It includes a full year of Turbo.</p></div>
             <div class="section-h"><h2>Turbo exclusives</h2></div><div class="items">${ITEMS.filter(i => i.turbo).map(card).join('')}</div>`
           : `<div class="items">${lists[tab].map(card).join('')}</div>
              <p class="small muted" style="margin-top:18px">Coins come from playing games (up to 2,000 a day) and the daily bonus. ₹ purchases use your ProMouser account. ${api.mode === 'demo' ? 'Demo mode: nothing is charged.' : ''}</p>`}`;

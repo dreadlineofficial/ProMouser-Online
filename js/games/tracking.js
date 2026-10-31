@@ -1,46 +1,58 @@
-/* Orb Tracking: keep the cursor on a dodging orb for 30 s. Score = % of time on target. Same orb path for everyone in a lobby. */
-import { countdown, results, sleep, avatar, nameTag, hud, pill } from './common.js';
+/* Orb Tracking (3D): keep your reticle on a glowing orb as it weaves through a tunnel for 30 s.
+   Score = % of time on target. Same orb path for everyone in a lobby. */
+import { countdown, results, sleep, hud, pill, avatar } from './common.js';
+import { studio, THREE, LIME, HOT } from './stage3d.js';
+
+export function buildSet(st) {
+  const rings = [];
+  for (let i = 0; i < 18; i++) {
+    const r = new THREE.Mesh(new THREE.TorusGeometry(7.5, .07, 6, 6), new THREE.MeshBasicMaterial({ color: new THREE.Color(i % 3 ? '#2a2f38' : LIME).multiplyScalar(i % 3 ? 1 : 1.3), toneMapped: false }));
+    r.rotation.z = Math.PI / 6; r.position.set(0, 4, -i * 4); st.scene.add(r); rings.push(r);
+  }
+  const orb = new THREE.Group(); st.scene.add(orb);
+  const core = new THREE.Mesh(new THREE.SphereGeometry(.55, 32, 24), new THREE.MeshStandardMaterial({ color: '#fff', emissive: LIME, emissiveIntensity: 1.6, roughness: .2 })); orb.add(core);
+  const shell = new THREE.Mesh(new THREE.IcosahedronGeometry(.85, 1), new THREE.MeshBasicMaterial({ color: new THREE.Color(LIME).multiplyScalar(1.4), wireframe: true, toneMapped: false })); orb.add(shell);
+  const light = new THREE.PointLight(LIME, 14, 14, 1.8); orb.add(light);
+  const hitbox = new THREE.Mesh(new THREE.SphereGeometry(1.15, 12, 8), new THREE.MeshBasicMaterial({ visible: false })); orb.add(hitbox);
+  return { rings, orb, core, shell, light, hitbox };
+}
 
 export async function start(stage, ctx) {
-  const DUR = 30000, R = 34, live = {};
-  stage.style.cursor = 'crosshair';
-  stage.innerHTML = '<canvas id="cv" style="position:absolute;inset:0;width:100%;height:100%"></canvas>';
-  const cv = stage.querySelector('#cv'), g = cv.getContext('2d');
-  const fit = () => { cv.width = stage.clientWidth * devicePixelRatio; cv.height = stage.clientHeight * devicePixelRatio; }; fit(); addEventListener('resize', fit);
-  const r = ctx.rand, ph = Array.from({ length: 6 }, () => r() * 6.28), sp = Array.from({ length: 6 }, () => .25 + r() * .6);
-  const pos = t => {   // smooth Lissajous-style path with sudden dashes
-    const s = t / 1000, dash = Math.sin(s * 1.7 + ph[5]) > .92 ? 1.8 : 1;
-    return [.5 + .36 * Math.sin(s * sp[0] * dash + ph[0]) + .08 * Math.sin(s * sp[1] * 3 + ph[1]), .5 + .34 * Math.cos(s * sp[2] * dash + ph[2]) + .08 * Math.sin(s * sp[3] * 2.4 + ph[3])];
-  };
-  let mx = -1, my = -1; stage.addEventListener('pointermove', e => { const b = cv.getBoundingClientRect(); mx = e.clientX - b.left; my = e.clientY - b.top; });
+  const DUR = 30000, live = {}, me = ctx.me.user_id;
+  const st = studio(stage, { fov: 55, fog: [10, 70], bg: '#090a0c' }), S = buildSet(st);
+  st.setCam([0, 4, 9], [0, 4, -10]); st.floor.visible = false;
+  const r = ctx.rand, ph = Array.from({ length: 6 }, () => r() * 6.28), sp = Array.from({ length: 6 }, () => .25 + r() * .55);
+  const path = t => { const s = t / 1000, dash = Math.sin(s * 1.7 + ph[5]) > .9 ? 1.8 : 1; return new THREE.Vector3(5.2 * Math.sin(s * sp[0] * dash + ph[0]) + 1.2 * Math.sin(s * sp[1] * 3 + ph[1]), 4 + 2.8 * Math.cos(s * sp[2] * dash + ph[2]) + .8 * Math.sin(s * sp[3] * 2.4 + ph[3]), -6 + 3 * Math.sin(s * sp[4] + ph[4])); };
+  stage.style.cursor = 'none';
+  const ret = document.createElement('div'); ret.className = 'reticle'; stage.appendChild(ret);
+  let lastE = null; stage.addEventListener('pointermove', e => { lastE = e; const b = stage.getBoundingClientRect(); ret.style.left = (e.clientX - b.left) + 'px'; ret.style.top = (e.clientY - b.top) + 'px'; });
   stage.addEventListener('contextmenu', e => e.preventDefault());
-  const others = ctx.players.filter(p => p.user_id !== ctx.me.user_id);
+  // a beam from the bottom of the screen to the orb while you're on it
+  const beam = new THREE.Mesh(new THREE.CylinderGeometry(.03, .03, 1, 8), new THREE.MeshBasicMaterial({ color: new THREE.Color(HOT).multiplyScalar(2.5), toneMapped: false, transparent: true })); st.scene.add(beam); beam.visible = false;
+  const others = ctx.players.filter(p => p.user_id !== me);
   ctx.listen('s', d => { live[d.id] = d.s; });
-  hud(stage, pill('On target', '0%'));
+  let on = 0, total = 0, t0 = 0, running = false, pct = 0;
+  const draw = left => hud(stage, `<div class="hud-row">${pill('On target', pct + '%', '', 'big')}${others.map(p => `<span class="hud-box"><span>${avatar(p, 14)} ${p.display_name}</span><b>${live[p.user_id] ?? 0}%</b></span>`).join('')}</div>${pill('Time', (left / 1000).toFixed(1), '', 'hot')}`);
+  st.onFrame((dt, t) => {
+    S.rings.forEach(rg => { rg.position.z += dt * 6; if (rg.position.z > 9) rg.position.z -= 72; });
+    const now = performance.now(), p = path(running ? now - t0 : 0); S.orb.position.copy(p); S.shell.rotation.x += dt; S.shell.rotation.y += dt * 1.3;
+    if (!running) return;
+    const hit = lastE && st.pick(lastE, [S.hitbox]);
+    total += dt; if (hit) on += dt;
+    ret.classList.toggle('on', !!hit); S.core.material.emissive.set(hit ? HOT : LIME); S.light.color.set(hit ? HOT : LIME);
+    beam.visible = !!hit; if (hit) { const a = new THREE.Vector3(0, -.5, 6), len = a.distanceTo(p); beam.scale.y = len; beam.position.copy(a).lerp(p, .5); beam.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), p.clone().sub(a).normalize()); }
+    pct = Math.round(on / Math.max(.001, total) * 100); draw(Math.max(0, DUR - (now - t0)));
+  });
+  st.start(); draw(DUR);
   await ctx.sync('go');
   await countdown(stage);
-  let on = 0, total = 0, t0 = performance.now(), last = t0, done = false;
-  await new Promise(res => {
-    const frame = now => {
-      const t = now - t0, dt = now - last; last = now;
-      const W = cv.width / devicePixelRatio, H = cv.height / devicePixelRatio, [px, py] = pos(t), x = px * W, y = py * H, hit = Math.hypot(mx - x, my - y) <= R;
-      total += dt; if (hit) on += dt;
-      g.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0); g.clearRect(0, 0, W, H);
-      g.strokeStyle = 'rgba(255,255,255,.04)'; for (let k = 0; k < W; k += 48) { g.beginPath(); g.moveTo(k, 0); g.lineTo(k, H); g.stroke(); } for (let k = 0; k < H; k += 48) { g.beginPath(); g.moveTo(0, k); g.lineTo(W, k); g.stroke(); }
-      const grd = g.createRadialGradient(x, y, 0, x, y, R * 2.2); grd.addColorStop(0, hit ? 'rgba(52,211,153,.55)' : 'rgba(168,85,247,.5)'); grd.addColorStop(1, 'transparent');
-      g.fillStyle = grd; g.beginPath(); g.arc(x, y, R * 2.2, 0, 7); g.fill();
-      g.fillStyle = hit ? '#34d399' : '#a855f7'; g.beginPath(); g.arc(x, y, R, 0, 7); g.fill(); g.fillStyle = '#fff'; g.beginPath(); g.arc(x, y, 6, 0, 7); g.fill();
-      const pct = Math.round(on / Math.max(1, total) * 100);
-      hud(stage, `${pill('On target', pct + '%')}<div class="row">${others.map(p => `<span class="pill">${avatar(p, 20)}${nameTag(p)} <b>${live[p.user_id] ?? 0}%</b></span>`).join('')}</div>${pill('Time', Math.max(0, (DUR - t) / 1000).toFixed(1))}`);
-      if (Math.floor(now / 500) !== Math.floor((now - dt) / 500)) ctx.emit('s', { id: ctx.me.user_id, s: pct });
-      if (t >= DUR) { done = true; res(); } else requestAnimationFrame(frame);
-    };
-    requestAnimationFrame(frame);
-  });
-  const pct = Math.round(on / Math.max(1, total) * 1000) / 10;
-  ctx.emit('s', { id: ctx.me.user_id, s: pct }); live[ctx.me.user_id] = pct;
+  t0 = performance.now(); running = true;
+  while (performance.now() - t0 < DUR) { ctx.emit('s', { id: me, s: pct }); await sleep(500); }
+  running = false; beam.visible = false;
+  const final = Math.round(on / Math.max(.001, total) * 1000) / 10;
+  ctx.emit('s', { id: me, s: final }); live[me] = final; stage.style.cursor = ''; ret.remove();
   await sleep(ctx.mode === 'lobby' ? 1500 : 0);
   const standings = ctx.players.length > 1 ? ctx.players.map(p => ({ ...p, score: live[p.user_id] || 0 })).sort((a, b) => b.score - a.score).map(s => ({ ...s, label: s.score + '%' })) : null;
-  const rank = standings ? standings.findIndex(s => s.user_id === ctx.me.user_id) + 1 : 1;
-  results(stage, ctx, { score: pct, unit: '% on target', won: !!standings && rank === 1, title: standings ? (rank === 1 ? 'You win!' : `#${rank} of ${standings.length}`) : pct >= 70 ? 'Locked on!' : 'Nice tracking', standings });
+  const rank = standings ? standings.findIndex(s => s.user_id === me) + 1 : 1;
+  results(stage, ctx, { score: final, unit: '% on target', won: !!standings && rank === 1, title: standings ? (rank === 1 ? 'You win' : `#${rank} of ${standings.length}`) : final >= 70 ? 'Locked on' : 'Nice tracking', standings });
 }

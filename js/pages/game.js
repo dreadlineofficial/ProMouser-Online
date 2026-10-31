@@ -8,7 +8,7 @@ boot({
   async render(view) {
     if (!g) { view.innerHTML = `<div class="empty">${icon('play')}<h2>Unknown game</h2><a class="btn primary" href="play.html">Pick a game</a></div>`; return; }
     document.title = `${g.name} — ProMouser Online`;
-    const exit = document.createElement('a'); exit.className = 'btn sm ghost'; exit.href = q.get('lobby') ? `lobby.html?id=${q.get('lobby')}` : 'play.html'; exit.innerHTML = `${icon('door')}Exit`; $('.top-title').after(exit);
+    const exit = document.createElement('a'); exit.className = 'btn sm ghost'; exit.href = q.get('lobby') ? `lobby.html?id=${q.get('lobby')}` : 'play.html'; exit.innerHTML = `${icon('door')}Exit`; $('.bar-right').prepend(exit);
     view.innerHTML = `<div class="gstage" id="stage" style="--g1:${g.grad[0]};--g2:${g.grad[1]}"><div class="gover"><div class="gover-card"><span class="spin"></span><p class="muted">${q.get('lobby') ? 'Waiting for players…' : 'Loading…'}</p></div></div></div>`;
     const stage = $('#stage');
     try {

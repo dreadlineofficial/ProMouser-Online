@@ -48,11 +48,11 @@ For a custom subdomain like `online.promouser.website`:
 ## What's in it
 | | |
 |---|---|
-| **Games** | Neon Arena (3D FPS), CPS Duel, Reaction Duel, Click Royale, Aim Rush, Orb Tracking, Shooting Gallery (3D), Pattern Recall. Solo, vs bots or in lobbies. |
+| **Games** | All eight are 3D: Arena (a sunlit first-person shooter where opponents wear orange), CPS Duel, Reaction Duel, Click Royale, Aim Rush, Orb Tracking, Shooting Gallery and Pattern Recall. Solo, vs bots or in lobbies. Your showcase mouse stands on your pedestal in the duels. |
 | **Social** | Friends and requests, live direct messages, online status, invites, public and private lobbies with join codes, lobby chat, ready-up. |
 | **Collection** | 15 procedurally modelled 3D mice and 14 animated borders, from common to mythic. Earn them with coins, the battle pass or Turbo, or buy them in ₹. |
 | **Profile** | Display name, username, bio, picture upload, border, showcase mouse, game stats, ProMouser stats. |
-| **Turbo** (₹199/month) | A gradient username, a custom profile banner gradient, the Turbo battle pass track and exclusive items. ProMouser Ultra includes a month. |
+| **Turbo** (₹199/month) | A gradient username, a custom profile banner gradient, the Turbo battle pass track and exclusive items. ProMouser Ultra includes a whole year. |
 
 ## How it's protected
 - **Server-side rules:** every change goes through checked functions in `online.sql`.
@@ -67,7 +67,7 @@ For a custom subdomain like `online.promouser.website`:
 - **Honest limits:**
   - Game results are reported by the player's browser, so a determined cheater can fake a
     score. The limits and coin caps keep that from breaking the economy.
-  - In Neon Arena, hits are reported by the shooter.
+  - In Arena, hits are reported by the shooter.
 
 ## Files
 | Path | What it is |
@@ -78,6 +78,8 @@ For a custom subdomain like `online.promouser.website`:
 | `js/ui.js` | app shell, sign-in, avatars and borders, toasts, checkout |
 | `js/data.js` | games, item catalog, battle pass, coin rules (mirrors `online.sql`) |
 | `js/mouse3d.js` | the 3D mouse models, thumbnails and viewer (three.js) |
-| `js/games/` | the games; `fps.js` is the shared 3D engine, `common.js` the match and results toolkit |
+| `js/games/` | the games; `fps.js` is the first-person engine and daylight world kit, `stage3d.js` the studio set, pedestals and labels for the other 3D games, `common.js` the match and results toolkit |
+| `assets/posters/` | game card art, rendered from the games themselves |
+| `tools/test-online.js` | Playwright check: every page, six games to the results screen, Arena and Gallery, and a two-tab lobby duel |
 | `supabase/online.sql` | tables, security rules and server functions |
 | `vendor/` | three.js r170 (MIT) and supabase-js 2.117.3 (MIT) |

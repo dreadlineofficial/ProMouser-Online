@@ -6,8 +6,8 @@
    ===================================================================== */
 
 export const GAMES = [
-  { id: 'arena', name: 'Neon Arena', tag: '3D FPS', icon: 'crosshair', mp: true, bots: true, max: 8,
-    blurb: 'Fast free-for-all in a neon 3D arena. First to 15 eliminations, or the most in 3 minutes.', score: 'Eliminations', grad: ['#22d3ee', '#3b82f6'] },
+  { id: 'arena', name: 'Arena', tag: '3D FPS', icon: 'crosshair', mp: true, bots: true, max: 8,
+    blurb: 'Fast free-for-all in a sunlit 3D concrete yard. First to 15 eliminations, or the most in 3 minutes.', score: 'Eliminations', grad: ['#22d3ee', '#3b82f6'] },
   { id: 'cps-duel', name: 'CPS Duel', tag: 'Duel', icon: 'cursor', mp: true, bots: true, max: 8,
     blurb: '10 seconds. Click as fast as you can. Highest CPS wins.', score: 'CPS', grad: ['#f472b6', '#ef4444'] },
   { id: 'reaction-duel', name: 'Reaction Duel', tag: 'Duel', icon: 'bolt', mp: true, bots: true, max: 8, low: true,

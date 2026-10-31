@@ -1,11 +1,11 @@
 /* =====================================================================
-   Neon Arena: 3D free-for-all. First to 15 eliminations or the most in 3 minutes.
+   Arena: 3D free-for-all in a sunlit concrete yard. First to 15 eliminations or the most in 3 minutes.
    Solo vs bots, or a lobby match (positions synced ~12x/second, hits
    reported by the shooter, bots simulated by the host).
    Controls: mouse to aim (click to lock), left click fire, WASD move,
    Shift sprint, Space jump, R reload, Tab scores, arrow keys also turn.
    ===================================================================== */
-import { THREE, engine, look, gun, fx, crosshair, sfx, textSprite } from './fps.js';
+import { THREE, engine, look, gun, fx, crosshair, sfx, textSprite, daySky, daylight, concreteTex, block, wallText } from './fps.js';
 import { results, sleep, countdown, avatar, nameTag, esc } from './common.js';
 import { buildMouse, animateMouse } from '../mouse3d.js';
 
@@ -20,69 +20,65 @@ function mapBoxes() {
   return b.map(([x, z, w, d, h, c]) => ({ x0: x - w / 2, x1: x + w / 2, z0: z - d / 2, z1: z + d / 2, top: h, c }));
 }
 const SPAWNS = [[-26, -26], [26, 26], [-26, 26], [26, -26], [0, -26], [0, 26], [-26, 0], [26, 0], [-14, -12], [14, 12]];
-const COLORS = ['#22d3ee', '#f472b6', '#a855f7', '#f59e0b', '#22c55e', '#ef4444', '#3b82f6', '#eab308', '#14b8a6', '#e879f9', '#fb7185', '#84cc16'];
+const COLORS = ['#d7ff3c', '#5cb8ff', '#f472b6', '#f5c542', '#a78bfa', '#34d399', '#22d3ee', '#fb7185', '#e879f9', '#94a3b8', '#fde047', '#ffffff'];
+const ENEMY = '#ff5b2e';   // every opponent wears signal orange: instantly readable against concrete
 
-function floorTex() {
-  const c = document.createElement('canvas'); c.width = c.height = 256; const x = c.getContext('2d');
-  x.fillStyle = '#000'; x.fillRect(0, 0, 256, 256); x.strokeStyle = '#7c3aed'; x.lineWidth = 3; x.strokeRect(0, 0, 256, 256);
-  x.strokeStyle = 'rgba(34,211,238,.35)'; x.lineWidth = 1; x.strokeRect(64, 64, 128, 128);
-  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(16, 16); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t;
-}
-
+/* a daylight concrete yard: pale floor, light and dark blocks, a few painted steel crates */
 function buildWorld(scene, boxes) {
-  scene.background = new THREE.Color('#0b0518'); scene.fog = new THREE.FogExp2('#120a26', .016);
-  // sky dome: purple horizon fading to a starry black zenith
-  const sc = document.createElement('canvas'); sc.width = 16; sc.height = 256; const sx = sc.getContext('2d'); const sg = sx.createLinearGradient(0, 0, 0, 256);
-  sg.addColorStop(0, '#02010a'); sg.addColorStop(.42, '#140a33'); sg.addColorStop(.5, '#5b1d8f'); sg.addColorStop(.53, '#f472b6'); sg.addColorStop(.56, '#2a0f4a'); sg.addColorStop(1, '#05020c'); sx.fillStyle = sg; sx.fillRect(0, 0, 16, 256);
-  const st = new THREE.CanvasTexture(sc); st.colorSpace = THREE.SRGBColorSpace;
-  scene.add(new THREE.Mesh(new THREE.SphereGeometry(160, 32, 16), new THREE.MeshBasicMaterial({ map: st, side: THREE.BackSide, fog: false, depthWrite: false })));
-  scene.add(new THREE.HemisphereLight('#a5b4fc', '#2a1240', 1.05));
-  const sun = new THREE.DirectionalLight('#c7d2fe', 1.1); sun.position.set(18, 30, 12); sun.castShadow = true;
-  Object.assign(sun.shadow.camera, { left: -36, right: 36, top: 36, bottom: -36, near: 1, far: 80 }); sun.shadow.mapSize.set(2048, 2048); sun.shadow.bias = -.0005; scene.add(sun);
-  [['#22d3ee', -20, -20], ['#f472b6', 20, 20], ['#a855f7', -20, 20], ['#f59e0b', 20, -20], ['#a855f7', 0, 0]].forEach(([c, x, z]) => { const l = new THREE.PointLight(c, 70, 42, 1.4); l.position.set(x, 6, z); scene.add(l); });
-  const ft = floorTex();
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(64, 64), new THREE.MeshStandardMaterial({ color: '#0d0b16', roughness: .32, metalness: .6, emissive: '#ffffff', emissiveMap: ft, emissiveIntensity: .95 }));
+  daySky(scene, { fog: [45, 150] }); daylight(scene, { extent: 38 });
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(64, 64), new THREE.MeshStandardMaterial({ map: concreteTex(8), roughness: .93, metalness: 0 }));
   floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
-  const glows = ['#22d3ee', '#f472b6', '#a855f7'].map(c => new THREE.LineBasicMaterial({ color: new THREE.Color(c).multiplyScalar(2.2), toneMapped: false }));
-  // walls and cover: dark panels with glowing neon bands
-  const band = (() => { const c = document.createElement('canvas'); c.width = 64; c.height = 256; const x = c.getContext('2d'); x.fillStyle = '#000'; x.fillRect(0, 0, 64, 256); x.fillStyle = '#fff'; x.fillRect(0, 26, 64, 6); x.fillRect(0, 200, 64, 3); const t = new THREE.CanvasTexture(c); t.wrapS = THREE.RepeatWrapping; return t; })();
-  const mats = [['#2a2440', '#22d3ee'], ['#2f2350', '#f472b6'], ['#1f2a44', '#a855f7']].map(([c, e]) => new THREE.MeshStandardMaterial({ color: c, roughness: .42, metalness: .55, emissive: e, emissiveMap: band, emissiveIntensity: 1.6 }));
+  const apron = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), new THREE.MeshStandardMaterial({ color: '#a8a195', roughness: 1 })); apron.rotation.x = -Math.PI / 2; apron.position.y = -.02; scene.add(apron);
+  // painted lines: a centre circle and lane markings
+  const paint = new THREE.MeshStandardMaterial({ color: '#f3f0e8', roughness: .8 });
+  const circ = new THREE.Mesh(new THREE.RingGeometry(7.3, 7.55, 96), paint); circ.rotation.x = -Math.PI / 2; circ.position.y = .01; scene.add(circ);
+  [[-18, 0, .25, 20], [18, 0, .25, 20], [0, -18, 20, .25], [0, 18, 20, .25]].forEach(([x, z, w, d]) => { const l = new THREE.Mesh(new THREE.PlaneGeometry(w, d), paint); l.rotation.x = -Math.PI / 2; l.position.set(x, .01, z); scene.add(l); });
+  const tones = ['#c4beb2', '#454a52', '#a7b24c'];   // light concrete, dark slate, painted steel
   const solid = [];
   boxes.forEach(b => {
-    const w = b.x1 - b.x0, d = b.z1 - b.z0, geo = new THREE.BoxGeometry(w, b.top, d), m = new THREE.Mesh(geo, mats[b.c]);
-    m.position.set((b.x0 + b.x1) / 2, b.top / 2, (b.z0 + b.z1) / 2); m.castShadow = m.receiveShadow = true; scene.add(m); solid.push(m);
-    const e = new THREE.LineSegments(new THREE.EdgesGeometry(geo), glows[b.c]); e.position.copy(m.position); scene.add(e);
+    const w = b.x1 - b.x0, d = b.z1 - b.z0, wall = w > 30 || d > 30;
+    const m = block(w, b.top, d, wall ? '#b8b2a6' : tones[b.c], { rough: b.c === 2 && !wall ? .55 : .88, metal: b.c === 2 && !wall ? .25 : 0 });
+    m.position.set((b.x0 + b.x1) / 2, b.top / 2, (b.z0 + b.z1) / 2); scene.add(m); solid.push(m);
   });
-  // centrepiece: a giant Prism Phantom spinning over the tower
-  const hero = buildMouse('m-prism'); hero.scale.setScalar(2.2); hero.position.set(0, 6.2, 0); scene.add(hero);
-  const ring = new THREE.Mesh(new THREE.TorusGeometry(3.4, .05, 8, 96), new THREE.MeshBasicMaterial({ color: new THREE.Color('#22d3ee').multiplyScalar(2.5), toneMapped: false })); ring.rotation.x = Math.PI / 2; ring.position.y = 4.35; scene.add(ring);
-  const sign = textSprite('PROMOUSER ARENA', { color: '#ffffff', glow: '#f472b6', size: 70, w: 1024, h: 160 }); sign.scale.set(12, 1.9, 1); sign.position.set(0, 6.4, -30.6); scene.add(sign);
-  const sign2 = sign.clone(); sign2.position.set(0, 6.4, 30.6); scene.add(sign2);
-  // floating dust
-  const n = 500, pos = new Float32Array(n * 3); for (let i = 0; i < n; i++) pos.set([(Math.random() - .5) * 62, Math.random() * 10, (Math.random() - .5) * 62], i * 3);
-  const dg = new THREE.BufferGeometry(); dg.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  const dust = new THREE.Points(dg, new THREE.PointsMaterial({ color: '#c4b5fd', size: .05, transparent: true, opacity: .6 })); scene.add(dust);
-  return { solid, tick(t) { hero.rotation.y = t * .5; hero.position.y = 6.2 + Math.sin(t * 1.2) * .25; animateMouse(hero, t); ring.rotation.z = t * .3; dust.rotation.y = t * .01; } };
+  // a dark plinth band around the perimeter walls and painted signage
+  [[0, -31, 0], [0, 31, Math.PI], [-31, 0, Math.PI / 2], [31, 0, -Math.PI / 2]].forEach(([x, z, r]) => {
+    const t = wallText('PROMOUSER ARENA', { width: 16 }); t.position.set(x, 4.6, z); t.rotation.y = r; scene.add(t);
+    const n = wallText(['A', 'B', 'C', 'D'][Math.round(r / (Math.PI / 2) + 4) % 4] + ' SITE', { width: 5, color: '#ff5b2e' }); n.position.set(x + (z ? 10 : 0) * Math.cos(r), 2.2, z + (x ? 10 : 0) * -Math.sin(r)); n.rotation.y = r; scene.add(n);
+  });
+  // distant skyline blocks fading into the haze
+  for (let i = 0; i < 40; i++) {
+    const a = i / 40 * Math.PI * 2 + Math.random() * .1, r = 70 + Math.random() * 40, h = 8 + Math.random() * 26, w = 6 + Math.random() * 10;
+    const s = new THREE.Mesh(new THREE.BoxGeometry(w, h, w), new THREE.MeshStandardMaterial({ color: '#b5b8bb', roughness: 1 })); s.position.set(Math.cos(a) * r, h / 2, Math.sin(a) * r); scene.add(s);
+  }
+  // centrepiece: a large Prism Phantom statue on the tower
+  const hero = buildMouse('m-prism'); hero.scale.setScalar(1.7); hero.position.set(0, 5.1, 0); scene.add(hero);
+  return { solid, tick(t) { hero.rotation.y = t * .4; animateMouse(hero, t); } };
 }
 
-/* player-shaped avatar for bots and other players, with head and body hitboxes */
+/* opponents: dark armour with signal-orange panels, a coloured stripe for who they are */
 function avatarMesh(scene, card, color) {
   const g = new THREE.Group();
-  const suit = new THREE.MeshStandardMaterial({ color: '#1c1a28', roughness: .4, metalness: .6 }), accent = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 1.6, roughness: .3 });
-  const body = new THREE.Mesh(new THREE.CapsuleGeometry(.36, .78, 6, 16), suit); body.position.y = .95; body.castShadow = true; g.add(body);
-  const chest = new THREE.Mesh(new THREE.BoxGeometry(.5, .08, .36), accent); chest.position.set(0, 1.2, 0); g.add(chest);
-  const head = new THREE.Mesh(new THREE.SphereGeometry(.24, 20, 16), suit); head.position.y = 1.62; head.castShadow = true; g.add(head);
-  const visor = new THREE.Mesh(new THREE.BoxGeometry(.34, .09, .12), accent); visor.position.set(0, 1.65, -.17); g.add(visor);
-  const gunM = new THREE.Mesh(new THREE.BoxGeometry(.07, .09, .55), suit); gunM.position.set(.3, 1.15, -.3); g.add(gunM);
-  const tag = textSprite(card.display_name, { color: '#fff', glow: color, size: 48 }); tag.position.y = 2.2; tag.scale.set(1.6, .4, 1); g.add(tag);
+  const suit = new THREE.MeshStandardMaterial({ color: '#3a3e46', roughness: .55, metalness: .3 });
+  const orange = new THREE.MeshStandardMaterial({ color: ENEMY, roughness: .5, emissive: ENEMY, emissiveIntensity: .25 });
+  const id = new THREE.MeshStandardMaterial({ color, roughness: .4, emissive: color, emissiveIntensity: .4 });
+  const add = (geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = true; g.add(m); return m; };
+  const body = add(new THREE.CapsuleGeometry(.3, .74, 6, 16), suit, 0, .95, 0);
+  add(new THREE.BoxGeometry(.68, .5, .52), orange, 0, 1.2, 0);                    // chest plate
+  add(new THREE.BoxGeometry(.7, .06, .54), id, 0, .97, 0);                       // identity stripe
+  add(new THREE.BoxGeometry(.5, .22, .5), orange, 0, .62, 0);                     // hips
+  add(new THREE.BoxGeometry(.2, .16, .3), orange, -.38, 1.36, 0); add(new THREE.BoxGeometry(.2, .16, .3), orange, .38, 1.36, 0);   // shoulders
+  const head = add(new THREE.SphereGeometry(.23, 20, 16), suit, 0, 1.64, 0);
+  add(new THREE.BoxGeometry(.36, .1, .14), new THREE.MeshStandardMaterial({ color: '#111', roughness: .15, metalness: .9 }), 0, 1.66, -.16);   // visor
+  add(new THREE.BoxGeometry(.08, .1, .56), suit, .3, 1.12, -.3);                 // rifle
+  const tag = textSprite(card.display_name, { color: '#fff', size: 46 }); tag.position.y = 2.2; tag.scale.set(1.6, .4, 1); g.add(tag);
   body.userData = { owner: card.user_id, head: false }; head.userData = { owner: card.user_id, head: true };
   scene.add(g);
   return { g, hit: [body, head] };
 }
 
 export async function start(stage, ctx) {
-  const E = engine(stage, { bloom: .75 }), { scene, cam } = E, boxes = mapBoxes(), world = buildWorld(scene, boxes);
-  const L = look(E.canvas, cam), G = gun(cam, { color: '#22d3ee' }), F = fx(scene), X = crosshair(stage);
+  const E = engine(stage, { bloom: .18 }), { scene, cam } = E, boxes = mapBoxes(), world = buildWorld(scene, boxes);
+  const L = look(E.canvas, cam), G = gun(cam), F = fx(scene), X = crosshair(stage);
   const ray = new THREE.Raycaster(), me = ctx.me.user_id, lobby = ctx.mode === 'lobby';
   const score = {}; ctx.all.forEach(p => { score[p.user_id] = { kills: 0, deaths: 0, card: p }; });
   const colorOf = id => COLORS[Math.abs([...id].reduce((a, c) => a * 31 + c.charCodeAt(0), 7)) % COLORS.length];
@@ -108,24 +104,24 @@ export async function start(stage, ctx) {
   ctx.players.filter(p => p.user_id !== me).forEach(p => addAvatar(p, false));
 
   /* ---------- HUD ---------- */
-  const hudEl = document.createElement('div'); hudEl.style.cssText = 'position:absolute;inset:0;pointer-events:none;z-index:3;font-weight:800';
-  hudEl.innerHTML = `<div id="vig" style="position:absolute;inset:0;background:radial-gradient(circle,transparent 45%,rgba(255,30,60,.55));opacity:0;transition:opacity .2s"></div>
-    <div style="position:absolute;left:16px;top:14px" class="row"><span class="pill" id="kd">0 / 0</span></div>
-    <div style="position:absolute;left:50%;top:14px;transform:translateX(-50%)" class="row"><span class="pill" id="clock">3:00</span><span class="pill" id="lead"></span></div>
-    <div id="feed" style="position:absolute;right:16px;top:14px;display:grid;gap:6px;justify-items:end;font-size:.82rem"></div>
-    <div style="position:absolute;left:16px;bottom:16px;width:min(280px,40vw)"><div class="row between small"><span>HEALTH</span><b id="hpN">100</b></div><div class="xpbar" style="height:10px"><i id="hpB" style="width:100%;background:linear-gradient(90deg,#34d399,#22d3ee)"></i></div></div>
-    <div style="position:absolute;right:16px;bottom:12px;text-align:right"><div class="gbig" id="ammo" style="font-size:3rem">30</div><small class="muted" id="ammoS">/ 30 · R to reload</small></div>
-    <div id="dead" style="position:absolute;inset:0;display:none;place-items:center;background:rgba(10,0,6,.55)"><div class="center"><div class="gbig" style="color:#ff4d6d">ELIMINATED</div><p id="deadBy"></p></div></div>
-    <div id="board" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:none;min-width:min(460px,90vw)" class="panel"></div>`;
+  const hudEl = document.createElement('div'); hudEl.className = 'fps-hud';
+  hudEl.innerHTML = `<div class="fps-vig" id="vig"></div>
+    <div class="fps-tl"><span class="hud-box"><span>Kills</span><b id="kN">0</b></span><span class="hud-box"><span>Deaths</span><b id="dN">0</b></span></div>
+    <div class="fps-tc"><span class="hud-box hot"><span>Time</span><b id="clock">3:00</b></span><span class="hud-box"><span>Leader · first to ${FRAG_LIMIT}</span><b id="lead">—</b></span></div>
+    <div class="fps-feed" id="feed"></div>
+    <div class="fps-hp"><div class="fps-hp-top"><span>Health</span><b id="hpN">100</b></div><div class="fps-bar"><i id="hpB"></i></div></div>
+    <div class="fps-ammo"><b id="ammo">30</b><span>/ 30</span><small id="ammoS">R reload</small></div>
+    <div class="fps-dead" id="dead"><div><div class="fps-dead-t">Eliminated</div><p id="deadBy"></p></div></div>
+    <div class="fps-board cut" id="board"></div>`;
   stage.appendChild(hudEl);
   const $h = s => hudEl.querySelector(s);
-  const feed = html => { const d = document.createElement('div'); d.className = 'pill'; d.innerHTML = html; $h('#feed').prepend(d); setTimeout(() => d.remove(), 5000); while ($h('#feed').children.length > 5) $h('#feed').lastChild.remove(); };
+  const feed = html => { const d = document.createElement('div'); d.className = 'fps-kill'; d.innerHTML = html; $h('#feed').prepend(d); setTimeout(() => d.remove(), 5000); while ($h('#feed').children.length > 5) $h('#feed').lastChild.remove(); };
   const ranking = () => Object.values(score).sort((a, b) => b.kills - a.kills || a.deaths - b.deaths);
-  const board = () => { $h('#board').innerHTML = `<h3 style="margin-bottom:10px">Scoreboard</h3><ol class="standings">${ranking().map((s, i) => `<li class="${s.card.user_id === me ? 'me' : ''}"><span class="pos">${i + 1}</span>${avatar(s.card, 26)}<span>${nameTag(s.card)}${s.card.bot ? ' <small class="muted">bot</small>' : ''}</span><b>${s.kills} / ${s.deaths}</b></li>`).join('')}</ol>`; };
+  const board = () => { $h('#board').innerHTML = `<h3>Scoreboard</h3><ol class="standings">${ranking().map((s, i) => `<li class="${s.card.user_id === me ? 'me' : ''}"><span class="pos">${i + 1}</span>${avatar(s.card, 26)}<span>${nameTag(s.card)}${s.card.bot ? ' <small class="muted">bot</small>' : ''}</span><b>${s.kills} / ${s.deaths}</b></li>`).join('')}</ol>`; };
   const hudTick = (now, endAt) => {
-    $h('#kd').textContent = `${score[me].kills} kills · ${score[me].deaths} deaths`; $h('#hpN').textContent = Math.ceil(P.hp); $h('#hpB').style.width = Math.max(0, P.hp) + '%';
-    $h('#ammo').textContent = P.reloading ? '··' : P.ammo; const left = Math.max(0, endAt - now); $h('#clock').textContent = `${Math.floor(left / 60000)}:${String(Math.floor(left / 1000) % 60).padStart(2, '0')}`;
-    const top = ranking()[0]; $h('#lead').innerHTML = top ? `Leader: ${esc(top.card.display_name)} · ${top.kills}` : '';
+    $h('#kN').textContent = score[me].kills; $h('#dN').textContent = score[me].deaths; $h('#hpN').textContent = Math.ceil(P.hp); $h('#hpB').style.width = Math.max(0, P.hp) + '%';
+    $h('#ammo').textContent = P.reloading ? '··' : P.ammo; $h('#ammo').classList.toggle('low', !P.reloading && P.ammo <= 8); $h('#hpB').classList.toggle('low', P.hp < 35); const left = Math.max(0, endAt - now); $h('#clock').textContent = `${Math.floor(left / 60000)}:${String(Math.floor(left / 1000) % 60).padStart(2, '0')}`;
+    const top = ranking()[0]; $h('#lead').innerHTML = top ? `${esc(top.card.display_name)} · ${top.kills}` : '—';
     $h('#board').style.display = L.keys.has('Tab') ? 'block' : 'none'; if (L.keys.has('Tab')) board();
     $h('#vig').style.opacity = Math.max(0, 1 - (now - P.lastHurt) / 600) * .9;
   };
@@ -136,7 +132,7 @@ export async function start(stage, ctx) {
     if (!score[victim] || !score[killer]) return;
     score[killer].kills++; score[victim].deaths++;
     const k = score[killer].card, v = score[victim].card;
-    feed(`${nameTag(k)} <span class="muted">${head ? '🎯' : '›'}</span> ${nameTag(v)}`);
+    feed(`${nameTag(k)} <span class="kf-w">${head ? 'HEADSHOT' : '›'}</span> ${nameTag(v)}`);
     if (killer === me && victim !== me) { sfx('kill'); X.hit(true); }
     const e = ents[victim]; if (e) { e.alive = false; e.hp = 0; if (e.mesh) e.mesh.visible = false; }
     if (victim === me) { $h('#dead').style.display = 'grid'; $h('#deadBy').innerHTML = `by ${nameTag(k)} · respawning…`; }
@@ -167,11 +163,11 @@ export async function start(stage, ctx) {
     ray.set(cam.getWorldPosition(new V3()), dir); ray.far = 120;
     const live = hitboxes.filter(h => ents[h.userData.owner] && ents[h.userData.owner].alive), hits = ray.intersectObjects([...world.solid, ...live], false);
     const end = hits.length ? hits[0].point : ray.ray.at(120, new V3());
-    F.tracer(G.muzzle.getWorldPosition(new V3()), end, '#a5f3fc');
+    F.tracer(G.muzzle.getWorldPosition(new V3()), end);
     if (hits.length && hits[0].object.userData.owner) {
       const h = hits[0].object.userData; X.hit(h.head); sfx('hit'); F.sparks(end, h.head ? '#ff4d6d' : '#fde68a', 14);
       hitEnt(h.owner, h.head ? 45 : 18, me, h.head);
-    } else if (hits.length) F.sparks(end, '#a5f3fc', 8);
+    } else if (hits.length) F.sparks(end, '#ffe2a8', 8);
     L.pitch = Math.min(1.45, L.pitch + .006); L.yaw += (Math.random() - .5) * .004;   // recoil
   }
 
@@ -197,8 +193,8 @@ export async function start(stage, ctx) {
         b.nextShot = now + (150 + Math.random() * 160) / skill;
         const tgtMoving = b.enemy.id === me ? (L.keys.size > 0) : !!b.enemy.wp, p = THREE.MathUtils.clamp((.42 * skill - d / 90) * (tgtMoving ? .8 : 1), .07, .7);
         const from = b.pos.clone().setY(1.2), toP = b.enemy.pos.clone().setY(1.2 + (Math.random() - .5) * .6);
-        if (Math.random() < p) { const head = Math.random() < .12; F.tracer(from, toP, '#fca5a5'); hitEnt(b.enemy.id, head ? 30 : 11, b.id, head); }
-        else { const miss = toP.clone().add(new V3((Math.random() - .5) * 2, (Math.random() - .5), (Math.random() - .5) * 2)); F.tracer(from, miss, '#fca5a5'); }
+        if (Math.random() < p) { const head = Math.random() < .12; F.tracer(from, toP, '#ff9b7a'); hitEnt(b.enemy.id, head ? 30 : 11, b.id, head); }
+        else { const miss = toP.clone().add(new V3((Math.random() - .5) * 2, (Math.random() - .5), (Math.random() - .5) * 2)); F.tracer(from, miss, '#ff9b7a'); }
       }
     } else if (b.wp) { const to = new V3().subVectors(b.wp, b.pos); to.y = 0; if (to.lengthSq() > .01) { to.normalize(); mv.add(to); b.yaw = Math.atan2(-to.x, -to.z); } }
     if (mv.lengthSq() > 0) { mv.normalize().multiplyScalar(sp * dt); const before = b.pos.clone(); b.pos.add(mv); collide(b.pos, 0); if (b.pos.distanceTo(before) < sp * dt * .3) b.wp = waypoints[Math.floor(Math.random() * waypoints.length)]; }
@@ -210,12 +206,15 @@ export async function start(stage, ctx) {
   ctx.listen('end', () => { if (!over) finish(); });
 
   /* ---------- start ---------- */
-  const intro = document.createElement('div'); intro.className = 'gover';
-  intro.innerHTML = `<div class="gover-card"><h2 class="grad-text" style="font-size:3rem">Neon Arena</h2><p class="muted">First to ${FRAG_LIMIT} eliminations, or the most in 3 minutes.</p>
-    <p class="small muted">Mouse aim · Left click fire · WASD move · Shift sprint · Space jump · R reload · Tab scores</p><button class="btn primary lg" type="button" id="lockBtn">Click to play</button></div>`;
+  const intro = document.createElement('div'); intro.className = 'gintro';
+  intro.innerHTML = `<div class="gintro-card"><span class="kicker">3D FPS · free-for-all</span><h2>Arena</h2><p class="muted">First to ${FRAG_LIMIT} eliminations, or the most in 3 minutes. Opponents wear orange.</p>
+    <div class="keys"><span><kbd>Mouse</kbd>aim</span><span><kbd>LMB</kbd>fire</span><span><kbd>WASD</kbd>move</span><span><kbd>Shift</kbd>sprint</span><span><kbd>Space</kbd>jump</span><span><kbd>R</kbd>reload</span><span><kbd>Tab</kbd>scores</span></div>
+    <div><button class="btn primary lg" type="button" id="lockBtn">Click to play</button></div></div>`;
   stage.appendChild(intro);
+  hudEl.style.visibility = 'hidden'; G.group.visible = false; const xh = stage.querySelector('.xhair'); if (xh) xh.style.visibility = 'hidden';
+  let preview = true; const orbit = now => { if (!preview) return; requestAnimationFrame(orbit); const a = now / 9000; cam.position.set(Math.sin(a) * 22, 9, Math.cos(a) * 22); cam.lookAt(0, 2.5, 0); world.tick(now / 1000); E.render(); }; requestAnimationFrame(orbit);
   await new Promise(res => { intro.querySelector('#lockBtn').addEventListener('click', () => { L.lock(); res(); }); if (lobby) setTimeout(res, 6000); });
-  intro.remove();
+  preview = false; intro.remove(); hudEl.style.visibility = ''; if (xh) xh.style.visibility = ''; G.group.visible = true; cam.rotation.set(0, L.yaw, 0); cam.position.set(P.pos.x, EYE, P.pos.z);
   E.canvas.addEventListener('mousedown', e => { if (e.button === 0) { if (!L.locked) L.lock(); L.buttons = 1; } });
   addEventListener('mouseup', e => { if (e.button === 0) L.buttons = 0; });
   await ctx.sync('go');
