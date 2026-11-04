@@ -412,3 +412,8 @@ h3 { font-size: 1.02rem; text-transform: uppercase; letter-spacing: .04em; }
 @media (max-width: 1000px) { .cards.games { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 640px) { .cards.games, .dash .cards.games { grid-template-columns: 1fr; } }
 .dash > .grid { align-content: start; }
+/* checkout: unlock code */
+.co-code { display: grid; gap: 8px; margin-top: 16px; }
+.co-code label { font-weight: 700; font-size: .9rem; }
+.co-code input { width: 100%; padding: .8rem 1rem; font: 600 1rem inherit; letter-spacing: .08em; }
+.co-code .f-err:empty { display: none; }

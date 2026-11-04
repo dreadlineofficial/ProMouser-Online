@@ -79,10 +79,11 @@ export const api = {
   leaderboard: game => rpc('o_leaderboard', { p_game: game }),
   buy: item => mut('o_buy', { p_item: item }),
   claimTier: (track, tier) => mut('o_claim_tier', { p_track: track, p_tier: tier }),
-  // checkout: test payments until Razorpay is connected (same flow as ProMouser's shop)
-  async checkout(products) {
-    if (!cfg.testPayments) fail('PAYMENTS_NOT_LIVE');
-    await rpc('test_grant_order', { p_order: 'PMO-' + Date.now().toString(36).toUpperCase() + Math.random().toString(36).slice(2, 6).toUpperCase(), p_products: products.map(p => p.id) });
+  // checkout: ProMouser isn't taking payments yet, so a purchase only goes through with an unlock code
+  // (checked on the server by redeem_order in ProMouser's supabase/schema.sql)
+  async checkout(products, code) {
+    const r = await rpc('redeem_order', { p_code: code || '', p_order: 'PMO-' + Date.now().toString(36).toUpperCase() + Math.random().toString(36).slice(2, 6).toUpperCase(), p_products: products.map(p => p.id) });
+    if (!r || !r.ok) fail((r && r.reason) || 'BAD_CODE');
     notify(); return rpc('o_me');
   },
   dev: null

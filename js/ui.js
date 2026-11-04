@@ -103,7 +103,7 @@ const ERR = {
   NOT_FRIENDS: 'You can only message friends.', BAD_MESSAGE: 'Messages are 1–500 characters.', LOBBY_NOT_FOUND: 'That lobby doesn’t exist or has closed.',
   LOBBY_FULL: 'That lobby is full.', NOT_HOST: 'Only the host can do that.', BAD_SCORE: 'That score couldn’t be saved.', NOT_ENOUGH_COINS: 'Not enough coins yet. Play a few games!',
   ALREADY_OWNED: 'You already own that.', TIER_LOCKED: 'Reach that tier first.', NETWORK: 'Can’t reach the server. Check your connection.', IMAGE_TOO_BIG: 'That image is too big.',
-  PAYMENTS_NOT_LIVE: 'Payments aren’t switched on yet.', STORAGE_FULL: 'Your browser storage is full.', BAD_INPUT: 'Please check what you entered.'
+  PAYMENTS_NOT_LIVE: 'Payments aren’t switched on yet.', BAD_CODE: 'That code isn’t valid.', TOO_MANY_TRIES: 'Too many wrong codes. Try again in 10 minutes.', STORAGE_FULL: 'Your browser storage is full.', BAD_INPUT: 'Please check what you entered.'
 };
 export const errText = e => ERR[e && (e.code || e.message)] || (e && e.message) || 'Something went wrong.';
 
@@ -163,13 +163,16 @@ export function checkout(products, onDone) {
   const total = products.reduce((a, p) => a + p.price, 0);
   const body = modal(`<div class="co"><h2>Checkout</h2>
     <ul class="co-lines">${products.map(p => `<li><span>${esc(p.name)}</span><b>${inr(p.price)}</b></li>`).join('')}<li class="tot"><span>Total</span><b>${inr(total)}</b></li></ul>
-    <p class="muted small">${api.mode === 'demo' ? 'Demo checkout: nothing is charged. Purchases are saved in this browser.' : 'Test payments: nothing is charged until Razorpay is connected. Purchases go to your shared ProMouser account.'}</p>
-    <div class="row end"><button class="btn ghost" type="button" data-close>Cancel</button><button class="btn primary" type="button" id="coPay">Pay ${inr(total)}</button></div></div>`, { label: 'Checkout', cls: 'narrow' });
+    <form id="coForm" class="co-code" autocomplete="off"><label for="coCode">Unlock code</label><input id="coCode" type="text" maxlength="40" spellcheck="false" autocapitalize="characters" placeholder="Enter your code" required>
+    <p class="muted small">ProMouser isn’t taking payments yet. Purchases unlock with a valid code.</p><p class="f-err" id="coErr"></p>
+    <div class="row end"><button class="btn ghost" type="button" data-close>Cancel</button><button class="btn primary" type="submit" id="coPay">Unlock</button></div></form></div>`, { label: 'Checkout', cls: 'narrow' });
   $('[data-close]', body).addEventListener('click', () => closeModal());
-  $('#coPay', body).addEventListener('click', async e => {
-    e.target.disabled = true; e.target.textContent = 'Processing…';
-    try { await api.checkout(products); await refresh(); closeModal(true); toast(`${icon('check')} Payment complete. Enjoy!`, { kind: 'ok' }); onDone && onDone(); }
-    catch (x) { e.target.disabled = false; e.target.textContent = 'Try again'; toast(errText(x), { kind: 'bad' }); }
+  $('#coCode', body).focus();
+  $('#coForm', body).addEventListener('submit', async e => {
+    e.preventDefault(); const btn = $('#coPay', body), code = $('#coCode', body).value.trim(); if (!code) return;
+    btn.disabled = true; btn.textContent = 'Checking…'; $('#coErr', body).textContent = '';
+    try { await api.checkout(products, code); await refresh(); closeModal(true); toast(`${icon('check')} Unlocked. Enjoy!`, { kind: 'ok' }); onDone && onDone(); }
+    catch (x) { btn.disabled = false; btn.textContent = 'Unlock'; $('#coErr', body).textContent = errText(x); $('#coCode', body).select(); }
   });
 }
 export const buyTurbo = done => checkout([TURBO_PRODUCT], done);

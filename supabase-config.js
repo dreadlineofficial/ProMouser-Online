@@ -4,6 +4,5 @@
    These two values are public by design. Never put the service_role / secret key here. */
 window.PMO_SUPABASE = {
   url: '',
-  anonKey: '',
-  testPayments: true   // the demo checkout grants purchases; set false once Razorpay is live
+  anonKey: ''
 };

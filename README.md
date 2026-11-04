@@ -20,11 +20,11 @@ lobbies and duels against yourself.
 ## Connect it to Supabase (shared accounts)
 Do this after ProMouser is already connected.
 1. In the Supabase **SQL Editor**, run ProMouser's `supabase/schema.sql`, then
-   `supabase/test-payments.sql` (optional, keeps the demo checkout working), and then
-   **`supabase/online.sql`** from this repo. All three are safe to re-run.
+   **`supabase/online.sql`** from this repo. Both are safe to re-run. Purchases (Turbo, ₹ items)
+   only go through with an unlock code, checked on the server by `redeem_order`.
 2. Put the **same** Project URL and publishable key in `supabase-config.js`:
    ```js
-   window.PMO_SUPABASE = { url: 'https://YOUR-PROJECT.supabase.co', anonKey: 'sb_publishable_...', testPayments: true };
+   window.PMO_SUPABASE = { url: 'https://YOUR-PROJECT.supabase.co', anonKey: 'sb_publishable_...' };
    ```
 3. Go to **Authentication → URL Configuration** and add this site's address to
    **Redirect URLs**, for example `https://dreadlineofficial.github.io/ProMouser-Online/`.

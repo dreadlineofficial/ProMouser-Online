@@ -11,6 +11,25 @@ const DB_KEY = 'pmo_db', TAB_KEY = 'pmo_uid', LAST_KEY = 'pmo_last_uid', DAY = 8
 const bus = 'BroadcastChannel' in window ? new BroadcastChannel('pmo_db') : null;
 const listeners = new Set();
 const fail = code => { const e = new Error(code); e.code = code; throw e; };
+// unlock codes: SHA-256 of the lower-cased code (the same codes as ProMouser; online, the server checks them)
+const UNLOCK = ['a78f8128f2109434daf14d867c665d97a242909409b29bc0a965111d8a4a9f80', 'a3e35c83f5e38f9cabd79021eb7f517cd11ffabcd743ce999539911ec593692e'];
+function sha256(str) {
+  const K = [], H = [], isP = n => { for (let i = 2; i * i <= n; i++) if (n % i === 0) return false; return true; }, fr = x => ((x - Math.floor(x)) * 4294967296) | 0;
+  for (let n = 2, c = 0; c < 64; n++) if (isP(n)) { if (c < 8) H[c] = fr(Math.pow(n, 1 / 2)); K[c++] = fr(Math.pow(n, 1 / 3)); }
+  const b = Array.from(new TextEncoder().encode(str)), L = b.length * 8; b.push(0x80); while (b.length % 64 !== 56) b.push(0);
+  for (let i = 7; i >= 0; i--) b.push(i > 3 ? 0 : (L >>> (i * 8)) & 255);
+  const r = (x, n) => (x >>> n) | (x << (32 - n)), W = new Array(64);
+  for (let o = 0; o < b.length; o += 64) {
+    for (let i = 0; i < 16; i++) W[i] = (b[o + i * 4] << 24) | (b[o + i * 4 + 1] << 16) | (b[o + i * 4 + 2] << 8) | b[o + i * 4 + 3];
+    for (let i = 16; i < 64; i++) { const s0 = r(W[i - 15], 7) ^ r(W[i - 15], 18) ^ (W[i - 15] >>> 3), s1 = r(W[i - 2], 17) ^ r(W[i - 2], 19) ^ (W[i - 2] >>> 10); W[i] = (W[i - 16] + s0 + W[i - 7] + s1) | 0; }
+    let [a, bb, c, d, e, f, g, h] = H;
+    for (let i = 0; i < 64; i++) { const t1 = (h + (r(e, 6) ^ r(e, 11) ^ r(e, 25)) + ((e & f) ^ (~e & g)) + K[i] + W[i]) | 0, t2 = ((r(a, 2) ^ r(a, 13) ^ r(a, 22)) + ((a & bb) ^ (a & c) ^ (bb & c))) | 0; h = g; g = f; f = e; e = (d + t1) | 0; d = c; c = bb; bb = a; a = (t1 + t2) | 0; }
+    [a, bb, c, d, e, f, g, h].forEach((v, i) => { H[i] = (H[i] + v) | 0; });
+  }
+  return H.map(v => (v >>> 0).toString(16).padStart(8, '0')).join('');
+}
+let codeTries = [];
+
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : 'u' + Math.random().toString(36).slice(2) + Date.now().toString(36));
 const today = () => new Date(Date.now() + 5.5 * 36e5).toISOString().slice(0, 10);   // India date, like o_today()
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -306,8 +325,11 @@ export const api = {
       o.coins += r.coins; o.bp_claims[track].push(tier); if (r.item) give(db, id, r.item, 'pass'); return meJson(db, id);
     });
   },
-  // demo checkout: grants the products straight away (Supabase mode uses test_grant_order / Razorpay)
-  async checkout(products) {
+  // checkout: only with a valid unlock code (8 wrong codes in 10 minutes locks it for a while)
+  async checkout(products, code) {
+    const now = Date.now(); codeTries = codeTries.filter(t => now - t < 600000);
+    if (codeTries.length >= 8) fail('TOO_MANY_TRIES');
+    if (!UNLOCK.includes(sha256(String(code || '').trim().toLowerCase()))) { codeTries.push(now); await sleep(300); fail('BAD_CODE'); }
     const id = need(); await sleep(700);
     return tx(db => {
       const u = db.users[id];
